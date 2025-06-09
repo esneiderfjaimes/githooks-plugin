@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.esneiderfjaimes"
-version = "0.0.1"
+version = "0.0.2"
 
 repositories {
     mavenCentral()
@@ -23,4 +23,13 @@ gradlePlugin {
             tags = listOf("git", "hooks", "git-hooks")
         }
     }
+}
+
+dependencies {
+    testImplementation(kotlin("test"))
+    testImplementation(gradleTestKit())
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

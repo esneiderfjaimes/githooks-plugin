@@ -3,6 +3,7 @@ package io.github.esneiderfjaimes.githooks
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import java.io.File
+import java.security.MessageDigest
 
 @Suppress("unused")
 class GitHooksPlugin : Plugin<Project> {
@@ -30,15 +31,24 @@ class GitHooksPlugin : Plugin<Project> {
         val markerFile = File(gitHooksDir, ".installed")
 
         if (!hooksDir.exists()) {
-            println("[X] hooks/ directory not found, skipping Git hooks installation")
+            println("[!] hooks/ directory not found, skipping Git hooks installation")
             return
         }
 
-        val hooksLastModified = hooksDir.listFiles()?.maxOfOrNull { it.lastModified() } ?: 0L
+        val currentHooksSignature = hooksDir.listFiles()
+            ?.sortedBy { it.name }
+            ?.joinToString("\n") {
+                buildString {
+                    append(it.name)
+                    append(":")
+                    append(it.sha256())
+                }
+            }
+            ?: ""
 
-        val markerLastModified = if (markerFile.exists()) markerFile.lastModified() else 0L
+        val previousSignature = if (markerFile.exists()) markerFile.readText() else ""
 
-        if (markerFile.exists() && markerLastModified >= hooksLastModified) {
+        if (currentHooksSignature == previousSignature) {
             println("[>] Git hooks already installed and up to date, skipping installation")
             return
         }
@@ -61,8 +71,27 @@ class GitHooksPlugin : Plugin<Project> {
             target.setExecutable(true)
         }
 
-        markerFile.writeText("Installed on ${System.currentTimeMillis()}")
+        markerFile.writeText(currentHooksSignature)
+
+        println("[>] currentHooksSignature is $currentHooksSignature")
 
         println("[OK] Git hooks installed successfully")
     }
+
+    private fun File.sha256(): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        inputStream().use { fis ->
+            val buffer = ByteArray(8192)
+            var bytesRead = fis.read(buffer)
+            if (bytesRead == -1) {
+                return digest.digest().joinToString("") { "%02x".format(it) }
+            }
+            while (bytesRead != -1) {
+                digest.update(buffer, 0, bytesRead)
+                bytesRead = fis.read(buffer)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
 }
