@@ -1,5 +1,7 @@
 # Git Hooks Installer Gradle Plugin
 
+[![Gradle Plugin Portal Version](https://img.shields.io/gradle-plugin-portal/v/io.github.esneiderfjaimes.githooks?color=%2302303a)](https://plugins.gradle.org/plugin/io.github.esneiderfjaimes.githooks)
+
 A lightweight Gradle plugin that automatically installs Git hooks from your project's `hooks/` directory into
 `.git/hooks/`, with executable permissions. Includes support for uninstalling hooks and optional configuration.
 
@@ -9,7 +11,7 @@ A lightweight Gradle plugin that automatically installs Git hooks from your proj
 
 ```kotlin
 plugins {
-    id("io.github.esneiderfjaimes.githooks") version "1.0.0"
+    id("io.github.esneiderfjaimes.githooks") version "<version>"
 }
 ```
 
