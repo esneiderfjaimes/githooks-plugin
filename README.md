@@ -1,6 +1,7 @@
 # Git Hooks Installer Gradle Plugin
 
-A lightweight Gradle plugin that automatically installs Git hooks from your project's `hooks/` directory into `.git/hooks/`, with executable permissions.
+A lightweight Gradle plugin that automatically installs Git hooks from your project's `hooks/` directory into
+`.git/hooks/`, with executable permissions. Includes support for uninstalling hooks and optional configuration.
 
 ---
 
@@ -16,9 +17,12 @@ plugins {
 
 ## 📦 What It Does
 
-This plugin installs all files from the `hooks/` directory into your project's `.git/hooks/` directory, replacing any existing ones. It also ensures all copied files are executable.
+* Installs all files from the `hooks/` directory into your project's `.git/hooks/`, replacing any existing ones.
+* Ensures all copied files are executable.
+* Can uninstall previously installed hooks.
+* Supports configuration via the `gitHooks` block in `build.gradle.kts`.
 
-Useful when working in teams to ensure Git hooks (e.g., pre-commit, pre-push) are consistently installed.
+This is especially useful when working in teams to ensure consistent Git hook behavior across environments.
 
 ---
 
@@ -36,15 +40,58 @@ your-project/
 
 ## 🛠 How to Use
 
-1. Add the plugin to your `plugins` block.
-2. Create a `hooks/` directory in the root of your project.
-3. Add your Git hook scripts (`pre-commit`, `commit-msg`, etc.).
-4. Run the task:
+### 1. Install Hooks Manually
+
+Run the following Gradle task:
 
 ```bash
 ./gradlew installGitHooks
 ```
 
 This will copy all files from `hooks/` to `.git/hooks/` with executable permissions.
+
+---
+
+### 2. Uninstall Hooks
+
+To remove all previously installed hooks (including the internal `.installed` signature file):
+
+```bash
+./gradlew uninstallGitHooks
+```
+
+This clears the `.git/hooks/` directory, unless the `hooks/` directory is missing or empty. Files like `.gitignore` will
+remain untouched.
+
+---
+
+### 3. Configure Behavior (Optional)
+
+You can configure the plugin using the `gitHooks` extension block:
+
+```kotlin
+gitHooks {
+    autoInstall = true     // Install hooks automatically after evaluation (default: true)
+}
+```
+
+This is helpful if you want hooks to be installed/uninstalled automatically when running any Gradle task.
+
+---
+
+## ✅ Tasks Provided
+
+| Task Name           | Description                                    |
+|---------------------|------------------------------------------------|
+| `installGitHooks`   | Installs hooks from `hooks/` to `.git/hooks/`  |
+| `uninstallGitHooks` | Removes all installed hooks from `.git/hooks/` |
+
+---
+
+## 💡 Notes
+
+* If `.git/` is missing (e.g., not a Git repo), the plugin will skip installation/uninstallation.
+* Hooks are only reinstalled if their content has changed (based on SHA-256 hash).
+* A `.installed` file is used to track the current hook signature.
 
 ---
