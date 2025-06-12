@@ -8,9 +8,11 @@ import java.security.MessageDigest
 @Suppress("unused")
 class GitHooksPlugin : Plugin<Project> {
     override fun apply(project: Project) {
+        val extension = project.extensions.create("gitHooks", GitHooksExtension::class.java)
+
         project.afterEvaluate {
-            if (project.file(".git").exists()) {
-                println("[>] Installing Git hooks after project evaluation")
+            if (extension.autoInstall && project.file(".git").exists()) {
+                println("[>] Auto-installing Git hooks after evaluation")
                 installGitHooks(project)
             }
         }
@@ -21,6 +23,15 @@ class GitHooksPlugin : Plugin<Project> {
 
             doLast {
                 installGitHooks(project)
+            }
+        }
+
+        project.tasks.register("uninstallGitHooks") {
+            group = "git"
+            description = "Removes all Git hooks and the installation marker"
+
+            doLast {
+                uninstallGitHooks(project)
             }
         }
     }
@@ -76,6 +87,26 @@ class GitHooksPlugin : Plugin<Project> {
         println("[>] currentHooksSignature is $currentHooksSignature")
 
         println("[OK] Git hooks installed successfully")
+    }
+
+    private fun uninstallGitHooks(project: Project) {
+        val gitHooksDir = project.file(".git/hooks")
+        val markerFile = File(gitHooksDir, ".installed")
+
+        if (!gitHooksDir.exists()) {
+            println("[>] No .git/hooks directory found, nothing to remove")
+            return
+        }
+
+        gitHooksDir.listFiles()?.forEach { file ->
+            if (file.name != ".gitignore") {
+                file.delete()
+            }
+        }
+
+        markerFile.delete()
+
+        println("[OK] Git hooks uninstalled successfully")
     }
 
     private fun File.sha256(): String {
