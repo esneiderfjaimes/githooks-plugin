@@ -1,29 +1,26 @@
 package io.github.esneiderfjaimes.githooks
 
 import org.gradle.testkit.runner.GradleRunner
+import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Characterization tests for the git WORKTREE layout, where `.git` is a regular
- * FILE (containing `gitdir: <path>`) instead of a directory.
+ * Tests for resolving the hooks destination directory, covering the git WORKTREE
+ * layout (where `.git` is a FILE containing `gitdir: <path>`, not a directory) and
+ * a configurable custom destination.
  *
- * These tests lock in the CURRENT (buggy) behavior so a later fix has a baseline:
- * the plugin hardcodes `project.file(".git/hooks")` (GitHooksPlugin.kt) and calls
- * `gitHooksDir.mkdirs()`. Because `.git` is a file, the path `.git/hooks/<hook>`
- * cannot be created and the copy throws `FileNotFoundException: ... (Not a directory)`.
- * That exception is not caught, so the WHOLE build fails unsafely instead of logging
- * a warning and skipping (which is what the README promises for a missing `.git/`).
- *
- * The intended fix will resolve the real hooks path (via `git rev-parse --git-path
- * hooks`, which also honors `core.hooksPath`, plus an optional configurable path on
- * the `gitHooks` extension) and, when git is unavailable, warn-and-continue. When
- * that lands, the expectations below are expected to change from `buildAndFail()` to
- * a successful warn-and-skip / correct-path install.
+ * Regression: previously the plugin hardcoded `project.file(".git/hooks")` and
+ * called `mkdirs()`, so a worktree `.git` file made the copy throw
+ * `FileNotFoundException: ... (Not a directory)` and the whole build failed. The
+ * fix resolves the real path via `git rev-parse --git-path hooks` (or an explicit
+ * `gitHooks.hooksDir` / `-PgitHooksDir=` override) and NEVER breaks the build:
+ * when the path cannot be resolved it warns and skips.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GitHooksPluginWorktreeTest {
@@ -31,12 +28,13 @@ class GitHooksPluginWorktreeTest {
     @TempDir
     lateinit var testProjectDir: File
 
-    private fun writeBuildFile() {
+    private fun writeBuildFile(extensionBlock: String = "") {
         File(testProjectDir, "build.gradle.kts").writeText(
             """
             plugins {
                 id("io.github.esneiderfjaimes.githooks")
             }
+            $extensionBlock
             """.trimIndent()
         )
     }
@@ -55,57 +53,97 @@ class GitHooksPluginWorktreeTest {
         }
     }
 
-    private fun runAndFail(task: String) = GradleRunner.create()
+    private fun run(vararg args: String) = GradleRunner.create()
         .withProjectDir(testProjectDir)
         .withPluginClasspath()
-        .withArguments(task)
+        .withArguments(*args)
         .forwardOutput()
-        .buildAndFail()
+        .build()
 
     @Nested
-    inner class CurrentBehavior {
+    inner class NeverBreaksTheBuild {
 
         /**
-         * CURRENT behavior: running `installGitHooks` when `.git` is a file makes the
-         * build FAIL with "Not a directory" instead of warning and skipping.
+         * With `.git` as a file and no explicit path, the temp project is not a real
+         * Git repo, so the path cannot be resolved. The build must SUCCEED with a
+         * warn-and-skip instead of failing with "Not a directory".
          */
         @Test
-        fun `dot git as file fails the build unsafely on installGitHooks`() {
-            println("worktree: .git is a file, installGitHooks fails the build unsafely")
+        fun `dot git as a file does not break installGitHooks`() {
+            println("worktree: .git is a file, installGitHooks warns and skips (no build failure)")
 
             writeBuildFile()
             writeWorktreeGitFile()
             writeSampleHook()
 
-            val result = runAndFail("installGitHooks")
+            val result = run("installGitHooks")
 
-            assertTrue(
-                result.output.contains("Not a directory"),
-                "CURRENT behavior: build fails with a 'Not a directory' error"
-            )
-            // `.git` is left as a file (not clobbered into a directory).
+            assertEquals(TaskOutcome.SUCCESS, result.task(":installGitHooks")?.outcome)
             assertTrue(File(testProjectDir, ".git").isFile, "Expected .git to remain a file")
         }
 
         /**
-         * CURRENT behavior: the auto-install guard is `project.file(".git").exists()`,
-         * which is TRUE for a file too, so auto-install runs during configuration on
-         * ANY task and fails the build unsafely in a worktree layout.
+         * Auto-install runs during configuration on ANY task. It must not fail the
+         * build in a worktree layout when the path cannot be resolved.
          */
         @Test
-        fun `auto install fails the build on any task in a worktree`() {
-            println("worktree: auto-install runs on any task and fails the build unsafely")
+        fun `auto install does not break any task in a worktree`() {
+            println("worktree: auto-install warns and skips on any task (no build failure)")
 
             writeBuildFile()
             writeWorktreeGitFile()
             writeSampleHook()
 
-            val result = runAndFail("help")
+            val result = run("help")
 
-            assertTrue(
-                result.output.contains("Not a directory"),
-                "CURRENT behavior: auto-install fails the build with 'Not a directory'"
+            assertEquals(TaskOutcome.SUCCESS, result.task(":help")?.outcome)
+        }
+    }
+
+    @Nested
+    inner class ConfigurableDestination {
+
+        /**
+         * A custom `gitHooks.hooksDir` wins over Git resolution and is used as the
+         * install destination — this is how a worktree user pins an explicit path.
+         */
+        @Test
+        fun `installs into the configured hooksDir`() {
+            println("configured hooksDir is honored")
+
+            writeBuildFile(
+                """
+                gitHooks {
+                    hooksDir = "custom-hooks"
+                }
+                """.trimIndent()
             )
+            writeSampleHook()
+
+            val result = run("installGitHooks")
+
+            val installed = File(testProjectDir, "custom-hooks/pre-commit")
+            assertTrue(installed.exists(), "Expected hook installed into custom-hooks/")
+            assertEquals(TaskOutcome.SUCCESS, result.task(":installGitHooks")?.outcome)
+        }
+
+        /**
+         * The `-PgitHooksDir=<path>` Gradle property overrides everything, even a
+         * worktree `.git` file, and must install cleanly without breaking the build.
+         */
+        @Test
+        fun `command line property overrides destination even with dot git file`() {
+            println("-PgitHooksDir overrides destination in a worktree layout")
+
+            writeBuildFile()
+            writeWorktreeGitFile()
+            writeSampleHook()
+
+            val result = run("installGitHooks", "-PgitHooksDir=cli-hooks")
+
+            val installed = File(testProjectDir, "cli-hooks/pre-commit")
+            assertTrue(installed.exists(), "Expected hook installed into cli-hooks/")
+            assertEquals(TaskOutcome.SUCCESS, result.task(":installGitHooks")?.outcome)
         }
     }
 }
