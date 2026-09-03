@@ -26,8 +26,8 @@ jobs:
           java-version: "17"
 
       - name: Set up Gradle
-        # Provides a Gradle install and dependency caching. We do not rely on the
-        # repo's ./gradlew wrapper because gradle-wrapper.jar is missing here.
+        # Dependency caching + build scan support. Tests are run via ./gradlew so
+        # the Gradle version is pinned by the repo's wrapper.
         uses: gradle/actions/setup-gradle@v4
 
       - name: Configure Git identity
@@ -38,7 +38,7 @@ jobs:
           git config --global init.defaultBranch main
 
       - name: Run tests
-        run: gradle test --stacktrace
+        run: ./gradlew test --stacktrace
 
       - name: Upload test report
         if: ${{ !cancelled() }}
