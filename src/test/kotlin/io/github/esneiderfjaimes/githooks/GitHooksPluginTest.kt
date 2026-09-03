@@ -19,6 +19,14 @@ class GitHooksPluginTest {
 
     @BeforeEach
     fun setupBuildFile() {
+        // Initialize a real Git repository so the plugin can resolve the hooks path
+        // via `git rev-parse --git-path hooks` (which returns .git/hooks here).
+        ProcessBuilder("git", "init")
+            .directory(testProjectDir)
+            .redirectErrorStream(true)
+            .start()
+            .waitFor()
+
         File(testProjectDir, "build.gradle.kts").writeText(
             """
             plugins {
@@ -71,7 +79,7 @@ class GitHooksPluginTest {
             val result = runInstallGitHooksGradleTask()
 
             val installed = File(testProjectDir, ".git/hooks")
-                .listFiles()?.filter { it.name != ".installed" } ?: emptyList()
+                .listFiles()?.filter { it.name != ".installed" && !it.name.endsWith(".sample") } ?: emptyList()
             assertTrue(installed.isEmpty(), "Expected no hook files to be installed")
             assertEquals(TaskOutcome.SUCCESS, result.task(":installGitHooks")?.outcome)
         }
@@ -110,7 +118,7 @@ class GitHooksPluginTest {
             val result = runInstallGitHooksGradleTask()
 
             val files = File(testProjectDir, ".git/hooks")
-                .listFiles()?.filter { it.name != ".installed" } ?: emptyList()
+                .listFiles()?.filter { it.name != ".installed" && !it.name.endsWith(".sample") } ?: emptyList()
             assertTrue(files.isEmpty(), "Expected no hook files to be installed")
             assertEquals(TaskOutcome.SUCCESS, result.task(":installGitHooks")?.outcome)
         }

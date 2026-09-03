@@ -5,10 +5,22 @@ plugins {
 }
 
 group = "io.github.esneiderfjaimes"
-version = "0.0.3"
+version = "0.1.0"
 
 repositories {
     mavenCentral()
+}
+
+// Compile the plugin against a low, stable Java version so consumers on older
+// Gradle JVMs can load it. Without this, the plugin is compiled with whatever
+// JDK is installed locally (e.g. JDK 24), producing bytecode that a consumer's
+// Gradle JVM (Java 21 or lower) cannot load. Gradle provisions this toolchain
+// automatically (via the foojay resolver in settings.gradle.kts), independent of
+// the local JDK. 17 is an LTS that matches CI and covers Gradle 8 on JDK 17+.
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 gradlePlugin {

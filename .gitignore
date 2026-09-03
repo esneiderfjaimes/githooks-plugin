@@ -9,6 +9,9 @@ out/
 *.war
 *.ear
 
+# Keep the Gradle wrapper jar (excluded from the *.jar rule above)
+!gradle/wrapper/gradle-wrapper.jar
+
 # IntelliJ / Android Studio
 .idea/
 *.iml
@@ -29,3 +32,4 @@ Thumbs.db
 # Other
 /local.properties
 gradle.properties
+/.kiro

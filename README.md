@@ -11,7 +11,7 @@ A lightweight Gradle plugin that automatically installs Git hooks from your proj
 
 ```kotlin
 plugins {
-    id("io.github.esneiderfjaimes.githooks") version "<version>"
+    id("io.github.esneiderfjaimes.githooks") version "0.1.0"
 }
 ```
 
@@ -73,11 +73,29 @@ You can configure the plugin using the `gitHooks` extension block:
 
 ```kotlin
 gitHooks {
-    autoInstall = true     // Install hooks automatically after evaluation (default: true)
+    autoInstall = true         // Install hooks automatically after evaluation (default: true)
+    hooksDir = "custom/hooks"  // Optional custom destination for the installed hooks (default: null)
 }
 ```
 
-This is helpful if you want hooks to be installed/uninstalled automatically when running any Gradle task.
+`autoInstall` is helpful if you want hooks to be installed/uninstalled automatically when running any Gradle task.
+
+#### Hooks destination resolution
+
+By default the plugin does **not** hardcode `.git/hooks`. It resolves the destination in this order:
+
+1. The Gradle property `-PgitHooksDir=<path>` (per-invocation override).
+2. The `gitHooks { hooksDir = "..." }` extension value.
+3. Git itself, via `git rev-parse --git-path hooks`.
+
+Asking Git (step 3) means the plugin works correctly with **git worktrees** (where `.git`
+is a file, not a directory) and honors a custom **`core.hooksPath`** — without any extra
+configuration.
+
+```bash
+# Override the destination for a single run
+./gradlew installGitHooks -PgitHooksDir=custom/hooks
+```
 
 ---
 
@@ -92,7 +110,10 @@ This is helpful if you want hooks to be installed/uninstalled automatically when
 
 ## 💡 Notes
 
-* If `.git/` is missing (e.g., not a Git repo), the plugin will skip installation/uninstallation.
+* If the hooks destination can't be resolved (e.g. not a Git repo, or `git` is unavailable),
+  the plugin logs a warning and skips installation/uninstallation — it never fails the build.
+* Works with **git worktrees** (`.git` is a file) and a custom **`core.hooksPath`**, because the
+  destination is resolved via `git rev-parse --git-path hooks` (unless overridden — see above).
 * Hooks are only reinstalled if their content has changed (based on SHA-256 hash).
 * A `.installed` file is used to track the current hook signature.
 
