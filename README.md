@@ -11,7 +11,7 @@ A lightweight Gradle plugin that automatically installs Git hooks from your proj
 
 ```kotlin
 plugins {
-    id("io.github.esneiderfjaimes.githooks") version "<version>"
+    id("io.github.esneiderfjaimes.githooks") version "0.1.0"
 }
 ```
 
