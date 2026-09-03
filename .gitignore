@@ -32,3 +32,4 @@ Thumbs.db
 # Other
 /local.properties
 gradle.properties
+/.kiro
